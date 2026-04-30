@@ -8,11 +8,11 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from app.chat_service import ChatService
-from app.config import Settings, get_settings
-from app.conversation_store import ConversationStore
-from app.guardrails import validate_user_message
-from app.mcp_service import MCPService
+from meridian.chat_service import ChatService
+from meridian.config import Settings, get_settings
+from meridian.conversation_store import ConversationStore
+from meridian.guardrails import validate_user_message
+from meridian.mcp_service import MCPService
 
 log = logging.getLogger(__name__)
 
@@ -36,13 +36,13 @@ def get_chat_service(request: Request) -> ChatService:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     settings = get_settings()
-    app.state.settings = settings
+    application.state.settings = settings
     cap = settings.conversation_turn_cap * 2
-    app.state.store = ConversationStore(max_messages_per_session=cap)
-    app.state.mcp = MCPService(settings.mcp_server_url)
+    application.state.store = ConversationStore(max_messages_per_session=cap)
+    application.state.mcp = MCPService(settings.mcp_server_url)
     log.info(
         "startup",
         extra={"mcp_server_url": settings.mcp_server_url, "openai_model": settings.openai_model},
@@ -51,8 +51,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Meridian Customer Support API", lifespan=lifespan)
-    app.add_middleware(
+    fastapi_app = FastAPI(title="Meridian Customer Support API", lifespan=lifespan)
+    fastapi_app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=True,
@@ -60,23 +60,23 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/health")
+    @fastapi_app.get("/health")
     def health() -> dict[str, Any]:
         return {"status": "ok"}
 
-    @app.get("/")
+    @fastapi_app.get("/")
     def root() -> dict[str, str]:
         return {"status": "Meridian Customer Support backend"}
 
-    @app.post("/chat", response_model=ChatResponse)
+    @fastapi_app.post("/chat", response_model=ChatResponse)
     async def chat_endpoint(
         req: ChatRequest,
         chat: Annotated[ChatService, Depends(get_chat_service)],
     ) -> ChatResponse:
-        settings: Settings = app.state.settings
+        settings: Settings = fastapi_app.state.settings
         gr = validate_user_message(req.message, settings.max_message_chars)
         if not gr.allowed:
-            sid = req.session_id or app.state.store.new_session_id()
+            sid = req.session_id or fastapi_app.state.store.new_session_id()
             msg = "Sorry, I can't assist with that request."
             if gr.reason == "message_too_long":
                 msg = "Your message is too long. Please shorten it and try again."
@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
                 msg = "Please enter a message."
             return ChatResponse(response=msg, session_id=sid)
 
-        store: ConversationStore = app.state.store
+        store: ConversationStore = fastapi_app.state.store
         session_id = req.session_id or store.new_session_id()
         if req.session_id is None:
             log.info("session.created", extra={"session_id": session_id})
@@ -100,7 +100,7 @@ def create_app() -> FastAPI:
 
         return ChatResponse(response=text, session_id=session_id)
 
-    return app
+    return fastapi_app
 
 
 app = create_app()

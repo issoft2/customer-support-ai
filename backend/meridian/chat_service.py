@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai import AsyncOpenAI
+from meridian.config import Settings
+from meridian.conversation_store import ConversationStore
+from meridian.mcp_service import MCPService
 
-from app.config import Settings
-from app.conversation_store import ConversationStore
-from app.mcp_service import MCPService
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 log = logging.getLogger(__name__)
 
@@ -33,10 +34,12 @@ class ChatService:
         mcp: MCPService,
         openai_client: AsyncOpenAI | None = None,
     ) -> None:
+        from openai import AsyncOpenAI as OpenAIClient
+
         self.settings = settings
         self.store = store
         self.mcp = mcp
-        self.client = openai_client or AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = openai_client or OpenAIClient(api_key=settings.openai_api_key)
 
     def _openai_history(self, session_id: str) -> list[dict[str, Any]]:
         return [{"role": m["role"], "content": m["content"]} for m in self.store.history(session_id)]

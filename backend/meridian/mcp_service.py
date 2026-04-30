@@ -5,9 +5,6 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
-from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
-
 log = logging.getLogger(__name__)
 
 
@@ -27,13 +24,17 @@ class MCPService:
         self.server_url = server_url.rstrip("/")
 
     @asynccontextmanager
-    async def connect(self) -> AsyncIterator[ClientSession]:
+    async def connect(self) -> AsyncIterator[Any]:
+        # Import lazily so /health works even if MCP wheels fail on some hosts.
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
+
         async with streamablehttp_client(self.server_url) as (read_stream, write_stream, _get_sid):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 yield session
 
-    async def list_tool_definitions(self, session: ClientSession) -> list[dict[str, Any]]:
+    async def list_tool_definitions(self, session: Any) -> list[dict[str, Any]]:
         listed = await session.list_tools()
         tools: list[dict[str, Any]] = []
         for t in listed.tools:
@@ -50,7 +51,7 @@ class MCPService:
             )
         return tools
 
-    async def call_tool(self, session: ClientSession, name: str, arguments: dict[str, Any]) -> str:
+    async def call_tool(self, session: Any, name: str, arguments: dict[str, Any]) -> str:
         log.info("mcp.tool_call", extra={"tool": name})
         try:
             raw = await session.call_tool(name, arguments=arguments or {})

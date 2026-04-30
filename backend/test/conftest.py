@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api import app, get_chat_service
+from meridian.api import app, get_chat_service
 
 
 @pytest.fixture
