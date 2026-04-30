@@ -96,8 +96,8 @@ Use **two Vercel projects** from the **same Git repo** (monorepo): one for `back
 
 **Notes:**
 
-- **`backend/main.py`** exposes `app` from **`meridian.api`** (the Python package is **`meridian`**, not `app`). Vercel loads **`main.py`** as the serverless entry; `pip install` runs via **`vercel.json`** `installCommand` + **`requirements.txt`** / **`pyproject.toml`**. See [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi).
-- `backend/vercel.json` sets **`maxDuration`: 60** seconds for the function. Chat + MCP + OpenAI can be slow; if requests time out, upgrade the Vercel plan or increase the allowed duration per [function limits](https://vercel.com/docs/functions/limitations).
+- **`backend/main.py`** (and **`backend/index.py`**) expose `app` from **`meridian.api`**. Dependencies install from **`requirements.txt`** / **`pyproject.toml`** when **Root Directory** is **`backend`**. See [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi).
+- Chat + MCP + OpenAI can exceed default function durations; if requests time out, raise limits in the Vercel project **Functions** settings or upgrade the plan ([limits](https://vercel.com/docs/functions/limitations)).
 - **Conversation memory** uses an in-memory store per server instance. On serverless, instances rotate, so **long chats may not retain history reliably** until you add Redis or similar.
 
 #### 2. Frontend project (Next.js)
@@ -139,7 +139,8 @@ Browser **CORS** to FastAPI is not required for chat when using the Next.js prox
 ```
 frontend/           # Next.js/React chat UI
 backend/meridian/   # FastAPI application package (not named `app` — avoids Vercel conflicts)
-backend/main.py     # Vercel + uvicorn entry → `meridian.api:app`
+backend/main.py     # uvicorn entry → `meridian.api:app`
+backend/index.py    # optional second entry (Vercel may detect either)
 README.md           # Project documentation
 ```
 
